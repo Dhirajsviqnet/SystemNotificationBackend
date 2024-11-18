@@ -8,7 +8,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:5173', // Allow requests from your frontend URL
+    origin: '*', // Allow requests from your frontend URL
     methods: ['GET', 'POST'],       // Allow GET and POST methods
     allowedHeaders: ['Content-Type'], // Optional, if you want to specify headers
     credentials: true,               // If you are using cookies, you can enable this
