@@ -1,56 +1,54 @@
 import express from 'express';
-import http from 'http';
-import { Server } from 'socket.io';
+import bodyParser from 'body-parser';
+import webPush from 'web-push';
 import cors from 'cors';
 
+// Generate these keys using "npx web-push generate-vapid-keys"
+const vapidKeys = {
+  publicKey: 'BCU1J6IJvDvGicgeYTC9Mzfym1EtSXHJfxmbdY_q06qgAIBaHmvaxcB5C3L2SvXucJgDGWn2aUnmze_GIdRLShM',
+  privateKey: 'ekPcuiKJp9GPgsMZurM8JD3WakrmC1a0Nn4SLBr5-hk',
+};
+
+// Configure web-push
+webPush.setVapidDetails(
+  'mailto:your-email@example.com', // Replace with your email
+  vapidKeys.publicKey,
+  vapidKeys.privateKey
+);
+
 const app = express();
-const server = http.createServer(app);
+const PORT = 4000;
 
-const io = new Server(server, {
-  cors: {
-    origin: '*', // Allow requests from your frontend URL
-    methods: ['GET', 'POST'],       // Allow GET and POST methods
-    allowedHeaders: ['Content-Type'], // Optional, if you want to specify headers
-    credentials: true,               // If you are using cookies, you can enable this
-  }
+app.use(bodyParser.json());
+app.use(cors());
+
+// Store subscriptions (in a real app, save these in a database)
+const subscriptions = [];
+
+// Endpoint to save a subscription
+app.post('/subscribe', (req, res) => {
+  const subscription = req.body;
+  subscriptions.push(subscription); // Save subscription
+  console.log("subscription",subscription);
+  
+  res.status(201).json({ message: 'Subscription saved.' });
 });
 
-const PORT = process.env.PORT || 5000;
+// Endpoint to send notifications to a specific subscription
+app.post('/notify', (req, res) => {
+  const { subscription, payload } = req.body;
 
-// Serve basic HTTP response
-app.get('/', (req, res) => {
-  res.send('Socket.IO server is running');
+  webPush
+    .sendNotification(subscription, JSON.stringify(payload))
+    .then(() => res.status(200).json({ message: 'Notification sent.' }))
+    .catch((err) => {
+      console.error('Error sending notification:', err);
+      res.status(500).json({ error: 'Failed to send notification.' });
+    });
 });
 
-const groups = {};
-
-io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
-
-  // Handle client joining a group
-  socket.on('joinGroup', (groupId) => {
-    if (!groups[groupId]) {
-      groups[groupId] = [];
-    }
-    groups[groupId].push(socket.id);
-    socket.join(groupId);
-    console.log(`Client ${socket.id} joined group ${groupId}`);
-  });
-
-  // Handle sending messages to a group
-  socket.on('sendMessage', (groupId, message) => {
-    io.to(groupId).emit('receiveMessage', { sender: socket.id, message });
-  });
-
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log(`Client ${socket.id} disconnected`);
-    for (let groupId in groups) {
-      groups[groupId] = groups[groupId].filter((id) => id !== socket.id);
-    }
-  });
-});
-
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
+  console.log(`Public VAPID Key: ${vapidKeys.publicKey}`);
 });
